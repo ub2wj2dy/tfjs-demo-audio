@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Tensorflow.js Demo</title>
+
+		<meta charset="UTF-8" />
+		<!-- Load TensorFlow.js-->
+		<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4"></script>
+		<!-- Load the speech-commands model. -->
+		<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script>
+
+		<style >
+			*{
+				box-sizing: border-box;
+			}
+			body{
+				margin: 0;
+			}
+			.controls-set{
+				display: flex;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="controls-set">
+			<button id="init-audio">Initialize audio</button>
+			<button id="start-audio" disabled="true">Start audio</button>
+			<button id="stop-audio" disabled="true">Stop audio</button>
+		</div>
+		<div id="text-output">
+		</div>
+		<script type="text/javascript">
+		(function(){
+			let recognizer = null;
+
+			const outputElement = document.getElementById('text-output');
+			const initButtonElement = document.getElementById('init-audio');
+			const startButtonElement = document.getElementById('start-audio');
+			const stopButtonElement = document.getElementById('stop-audio');
+
+			const showDetected = function(detected){
+				const textElement = document.createElement('p');
+				textElement.innerHTML = `${new Date().toLocaleTimeString()}: ${detected[0].word}<sup>${detected[0].probability.toFixed(2)}</sup>`;
+				outputElement.prepend(textElement);
+			}
+
+			const initRecognizer = function(){
+				recognizer = speechCommands.create('BROWSER_FFT');
+				return recognizer.ensureModelLoaded();
+			}
+
+			const startDetecting = function(){
+				const onDetectCallback = function(detectionResult){
+					const detected = recognizer.words.map(function(word, index){
+						return {
+							word: word,
+							probability: detectionResult.scores[index]
+						}
+					}).sort(function(a, b){
+						return b.probability - a.probability;
+					});
+					showDetected(detected);
+				}
+				return recognizer.listen(onDetectCallback, {
+					includeSpectrogram: true,
+					probabilityThreshold: 0.85,
+				});
+			};
+
+			const stopDetecting = function(){
+				if(recognizer && recognizer.streaming) {
+					return recognizer.stopListening();
+				}
+				return Promise.resolve();
+			}
+
+			const lockControls = function(){
+				initButtonElement.disabled = true;
+				startButtonElement.disabled = true;
+				stopButtonElement.disabled = true;
+			}
+
+			const handleError = function(ex){
+				console.dir(ex.message);
+				recognizer = null;
+				initButtonElement.disabled = false;
+				alert('Something went wrong.\nPlease check console for detailed information.');
+			};
+
+			initButtonElement.addEventListener('click', function(){
+				lockControls();
+				initRecognizer()
+					.then(function(){
+						initButtonElement.disabled = false;
+						startButtonElement.disabled = false;
+					})
+					.catch(handleError)
+			})
+
+			startButtonElement.addEventListener('click', function(){
+				lockControls();
+				startDetecting()
+					.then(function(){
+						initButtonElement.disabled = false;
+						stopButtonElement.disabled = false;
+					})
+					.catch(handleError);
+			});
+
+			stopButtonElement.addEventListener('click', function(){
+				stopButtonElement.disabled = true;
+				stopDetecting()
+					.then(function(){
+						initButtonElement.disabled = false;
+						startButtonElement.disabled = false;
+					})
+					.catch(handleError);
+			});
+		})();
+		</script>
+	</body>
+</html>
